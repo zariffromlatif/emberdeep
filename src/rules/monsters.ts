@@ -99,11 +99,11 @@ export const MONSTERS: Record<string, MonsterDef> = {
     traits: [], lore: "A mountain of appetite. One hit can end a careless hero.",
   },
   wight: {
-    id: "wight", name: "Varrow, the Ember Wight", ac: 15, hp: 78, speed: 6, scores: s(15, 14, 16, 10, 13, 15),
+    id: "wight", name: "Varrow, the Ember Wight", ac: 15, hp: 66, speed: 6, scores: s(15, 14, 16, 10, 13, 15),
     attacks: [
-      melee("Ember Blade", 5, "1d10+3", "fire", "cleave"),
-      melee("Life Drain", 5, "2d6+2", "necrotic", "drain"),
-      ranged("Cinder Bolt", 5, "2d8", "fire", 10, "cinder"),
+      melee("Ember Blade", 4, "1d8+3", "fire", "cleave"),
+      melee("Life Drain", 4, "2d6+2", "necrotic", "drain"),
+      ranged("Cinder Bolt", 4, "2d8", "fire", 10, "cinder"),
     ],
     multiattack: 2, xp: 1100,
     traits: ["undead", "life_drain", "summoner", "boss"],

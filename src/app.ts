@@ -25,6 +25,7 @@ const TONE_COLOR: Record<Tone, string> = {
   info: "#efe6d6", good: "#8fe39a", bad: "#ff7a6e", crit: "#ffd34d", miss: "#b0b0b0", magic: "#9ab8ff", gold: "#e9c27a", dim: "#8a8070",
 };
 const DMG_COLOR: Record<string, string> = {
+  lightning: "#9fd8ff",
   fire: "#ff8a3d", radiant: "#ffe48a", force: "#b9a4ff", necrotic: "#a070ff", cold: "#8fd8ff", poison: "#9be05a",
 };
 
@@ -32,7 +33,7 @@ const DMG_COLOR: Record<string, string> = {
 const DEFAULT_ATTACK: Record<ClassId, string[]> = {
   fighter: ["attack"],
   rogue: ["attack"],
-  wizard: ["fire_bolt", "attack"],
+  wizard: ["shocking_grasp", "fire_bolt"],
   cleric: ["attack"],
 };
 
@@ -401,6 +402,11 @@ export class App {
           this.sfx.fire();
           await this.fx.bolt(a.chestPos.add(new Vector3(0, 0.2, 0)), e.hit ? d.chestPos : d.chestPos.add(new Vector3(0.6, 0.5, 0.4)), spellFx[e.fx], e.fx === "guiding" ? 0.28 : 0.22);
           if (e.hit) this.fx.burst(d.chestPos, { color: spellFx[e.fx], color2: "#ffd27a", count: 40, power: 3, size: 0.18 });
+        } else if (e.fx === "shock") {
+          await a.cast(d.world, t, "shoot");
+          this.sfx.magic();
+          this.fx.light(d.chestPos, "#9fd8ff", 2.5, 5);
+          this.fx.burst(d.chestPos, { color: "#9fd8ff", color2: "#ffffff", count: e.hit ? 50 : 15, power: 3.5, size: 0.1, life: 0.35, gravity: 0 });
         } else if (e.fx === "arrow" || e.fx === "dagger") {
           await a.strike(d.world, t, true);
           this.sfx.arrow();

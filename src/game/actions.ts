@@ -41,7 +41,7 @@ const weaponAttack: HeroAction = {
   range: 1,
   hostile: true,
   toHit: (g) => g.weaponToHit(),
-  stat: (g) => `${signed(g.weaponToHit())} to hit · ${g.weaponDamage()} ${CLASSES[g.hero.cls].weapon.type}${g.hero.cls === "cleric" ? ` + ${g.hero.level >= 5 ? "1d8" : "1d4"} radiant` : ""}`,
+  stat: (g) => `${signed(g.weaponToHit())} to hit · ${g.weaponDamage()} ${CLASSES[g.hero.cls].weapon.type}${g.hero.cls === "cleric" ? ` + ${g.blessedDice()} radiant` : ""}`,
   desc: "Strike with your weapon. Click a distant foe to walk up and swing.",
   run: (g, t) => {
     const w = CLASSES[g.hero.cls].weapon;
@@ -159,35 +159,50 @@ const cunningDash: HeroAction = {
 const fireBolt: HeroAction = {
   id: "fire_bolt", name: "Fire Bolt", icon: "flame", cost: "action", targeting: "enemy", range: 8, hostile: true,
   toHit: (g) => g.spellAttack(),
-  stat: (g) => `${signed(g.spellAttack())} to hit · ${g.hero.level >= 5 ? "2d10" : "1d10"} fire · range 8`,
+  stat: (g) => `${signed(g.spellAttack())} to hit · ${evoke(g, g.hero.level >= 5 ? "2d10" : "1d10")} fire · range 8`,
   desc: "Cantrip. Hurl a mote of fire. Costs no spell slot.",
   run: (g, t) => {
-    g.attack(g.hero, t!, { toHit: g.spellAttack(), dice: g.hero.level >= 5 ? "2d10" : "1d10", type: "fire", ranged: true, fx: "firebolt", label: "Fire Bolt" });
+    g.attack(g.hero, t!, { toHit: g.spellAttack(), dice: evoke(g, g.hero.level >= 5 ? "2d10" : "1d10"), type: "fire", ranged: true, fx: "firebolt", label: "Fire Bolt" });
+  },
+};
+
+const shockingGrasp: HeroAction = {
+  id: "shocking_grasp", name: "Shocking Grasp", icon: "bolt", cost: "action", targeting: "enemy", range: 1, hostile: true,
+  toHit: (g) => g.spellAttack(),
+  stat: (g) => `${signed(g.spellAttack())} to hit · ${evoke(g, g.hero.level >= 5 ? "2d8" : "1d8")} lightning · touch`,
+  desc: "Cantrip. Lightning leaps from your hand. A struck foe can't make an opportunity attack until its next turn, so you can step away.",
+  run: (g, t) => {
+    g.attack(g.hero, t!, {
+      toHit: g.spellAttack(), dice: evoke(g, g.hero.level >= 5 ? "2d8" : "1d8"), type: "lightning", ranged: false, fx: "shock", label: "Shocking Grasp",
+      onHit: () => { if (!t!.dead) { t!.reactionUsed = true; g.float(t!, "No reactions", "magic"); } },
+    });
   },
 };
 
 const magicMissile: HeroAction = {
   id: "magic_missile", name: "Magic Missile", icon: "sparkle", cost: "action", targeting: "enemy", range: 8, slots: 1, hostile: true,
-  stat: (g) => `${missiles(g)} darts · 1d4+1 force each · never misses`,
+  stat: (g) => `${missiles(g)} darts · 1d4+1 force each${signed(g.mod(g.hero, "int"))} total · never misses`,
   desc: "Glowing darts of force that always strike their mark.",
   run: (g, t) => {
     g.emit({ t: "spell", caster: g.hero.id, fx: "missile", at: { ...t!.pos }, target: t!.id });
-    let total = 0;
+    let total = g.mod(g.hero, "int");
     for (let i = 0; i < missiles(g); i++) total += roll(g.rng, "1d4+1").total;
     g.log(`${missiles(g)} darts of force slam into the ${t!.name}.`, "magic");
     g.damage(t!, total, "force", { by: g.hero, note: "Magic Missile" });
   },
 };
+/** Empowered Evocation (SRD Evocation feature, granted early for solo play): add INT to evocation damage. */
+const evoke = (g: Game, dice: string) => `${dice}${signed(g.mod(g.hero, "int"))}`;
 const missiles = (g: Game) => (g.hero.level >= 3 ? 4 : 3);
 
 const burningHands: HeroAction = {
   id: "burning_hands", name: "Burning Hands", icon: "fan", cost: "action", targeting: "cone", range: 3, slots: 1, hostile: true,
-  stat: (g) => `3d6 fire in a cone · Dex save DC ${g.spellDc()} for half`,
+  stat: (g) => `${evoke(g, "3d6")} fire in a cone · Dex save DC ${g.spellDc()} for half`,
   desc: "A fan of flame bursts from your fingertips. Aim it at a nearby tile.",
   run: (g, _t, at) => {
     const tiles = affectedTiles(g, burningHands, at!);
     g.emit({ t: "spell", caster: g.hero.id, fx: "cone", at: { ...at! }, tiles });
-    areaDamage(g, tiles, "3d6", "fire", "Burning Hands");
+    areaDamage(g, tiles, evoke(g, "3d6"), "fire", "Burning Hands");
   },
 };
 
@@ -204,12 +219,12 @@ const mistyStep: HeroAction = {
 
 const fireball: HeroAction = {
   id: "fireball", name: "Fireball", icon: "burst", cost: "action", targeting: "area", range: 12, radius: 3, slots: 2, minLevel: 5, hostile: true,
-  stat: (g) => `8d6 fire · radius 3 · Dex save DC ${g.spellDc()} for half · 2 slots`,
+  stat: (g) => `${evoke(g, "8d6")} fire · radius 3 · Dex save DC ${g.spellDc()} for half · 2 slots`,
   desc: "The classic. A bead of light blooms into a roaring explosion. Mind your own eyebrows.",
   run: (g, _t, at) => {
     const tiles = affectedTiles(g, fireball, at!);
     g.emit({ t: "spell", caster: g.hero.id, fx: "fireball", at: { ...at! }, tiles });
-    areaDamage(g, tiles, "8d6", "fire", "Fireball");
+    areaDamage(g, tiles, evoke(g, "8d6"), "fire", "Fireball");
   },
 };
 
@@ -297,7 +312,7 @@ const turnUndead: HeroAction = {
 export const CLASS_ACTIONS: Record<ClassId, HeroAction[]> = {
   fighter: [weaponAttack, secondWind, actionSurge, dodge, dash, potion],
   rogue: [weaponAttack, throwDagger, hide, disengage, cunningDash, potion, dodge],
-  wizard: [fireBolt, magicMissile, burningHands, mistyStep, fireball, weaponAttack, dodge, potion],
+  wizard: [fireBolt, shockingGrasp, magicMissile, burningHands, mistyStep, fireball, dodge, potion],
   cleric: [weaponAttack, sacredFlame, guidingBolt, cureWounds, healingWord, turnUndead, dodge, potion],
 };
 

@@ -371,6 +371,11 @@ function populate(m: DungeonMap, rng: Rng): void {
   const table = DEPTH_TABLES[m.depth] ?? DEPTH_TABLES[1];
   const cap = GROUP_CAP[m.depth] ?? 750;
   const filled = new Set<number>();
+  // The depth-4 Ogre guards the stairs alone: it is a full encounter by itself.
+  if (m.depth === 4) {
+    const stairsRoom = m.rooms.find((r) => r.kind === "stairs");
+    if (stairsRoom) filled.add(stairsRoom.id);
+  }
   for (let pass = 0; pass < 3 && budget > 0; pass++) {
     for (const r of rooms) {
       if (budget <= 0) break;

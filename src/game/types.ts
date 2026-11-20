@@ -3,7 +3,7 @@ import type { D20Result } from "../core/dice";
 
 export type Team = "hero" | "enemy";
 export type DamageType =
-  | "slashing" | "piercing" | "bludgeoning" | "fire" | "force" | "radiant" | "necrotic" | "poison" | "cold";
+  | "slashing" | "piercing" | "bludgeoning" | "fire" | "force" | "radiant" | "necrotic" | "poison" | "cold" | "lightning";
 export type Ability = "str" | "dex" | "con" | "int" | "wis" | "cha";
 export type Scores = Record<Ability, number>;
 
@@ -72,6 +72,8 @@ export interface Hero extends Actor {
   hitDice: number;
   /** Short rests taken this depth. */
   restsUsed: number;
+  /** Wizard's Ember Ward: temporary hit points, renewed at the start of each fight. */
+  ward?: number;
   /** Per-floor features: Second Wind, Action Surge, Turn Undead. */
   featureUses: Record<string, number>;
   kills: number;

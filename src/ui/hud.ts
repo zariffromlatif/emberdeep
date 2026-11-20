@@ -328,6 +328,7 @@ export class Hud {
     const slots = h.slotsMax ? `<span class="chip" title="Spell slots"><span class="pips">${Array.from({ length: h.slotsMax }, (_, i) => `<i class="${i < h.slots ? "on" : ""}"></i>`).join("")}</span></span>` : "";
     $(el, "[data-chips]").innerHTML = `
       <span class="chip" title="Armour Class">${icon("shield")} <b>${h.ac}</b></span>
+      ${h.ward ? `<span class="chip ward" title="Ember Ward: absorbs damage this fight">${icon("sparkle")} <b>${h.ward}</b></span>` : ""}
       ${slots}
       <span class="chip" title="Potions of Healing">${icon("potion")} <b>${h.potions}</b></span>
       <span class="chip" title="Gold">${icon("coin")} <b>${h.gold}</b></span>

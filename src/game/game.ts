@@ -240,6 +240,16 @@ export class Game {
     return bonus === 0 ? w.dice : `${w.dice}${signed(bonus)}`;
   }
 
+  /** Cleric's Blessed Strikes: radiant dice added to weapon hits. */
+  blessedDice(): string {
+    return this.hero.level >= 5 ? "2d8" : "1d8";
+  }
+
+  /** Wizard's Ember Ward: temporary HP renewed at the start of each fight. */
+  wardMax(): number {
+    return 4 * this.hero.level + this.mod(this.hero, "int");
+  }
+
   sneakDice(): number {
     return Math.ceil(this.hero.level / 2);
   }
@@ -344,6 +354,10 @@ export class Game {
     const woke = this.wakeGroups(seeds);
     if (!woke.length && !this.monsters.some((m) => m.awake)) return;
     const h = this.hero;
+    if (h.cls === "wizard") {
+      h.ward = this.wardMax();
+      this.float(h, `Ember Ward ${h.ward}`, "magic");
+    }
     const stealth = roll(this.rng, "1d20", this.mod(h, "dex") + CLASSES[h.cls].stealthBonus).total;
     const surprised: number[] = [];
     if (!opened) {
@@ -399,6 +413,7 @@ export class Game {
     this.turnIdx = -1;
     this.resetTurn(this.hero);
     this.hero.cond = {};
+    this.hero.ward = 0;
     this.emit({ t: "combatEnd" });
     this.log("The last foe falls. Silence returns to the dark.", "good");
     if (this.depth === FINAL_DEPTH && !this.actors.some((a) => a.def === "wight" && !a.dead)) {
@@ -492,11 +507,11 @@ export class Game {
       note = "Sneak Attack";
     }
     if (o.blessed && attacker === this.hero && this.hero.cls === "cleric") {
-      total2 += roll(this.rng, this.hero.level >= 5 ? "1d8" : "1d4", 0, mult).total;
+      total2 += roll(this.rng, this.blessedDice(), 0, mult).total;
       note = "Blessed";
     }
     this.log(`${who} hit${attacker === this.hero ? "" : "s"} ${whom}${crit ? " — CRITICAL!" : ""} ${total} vs AC ${target.ac}${edgeText}.`, crit ? "crit" : attacker === this.hero ? "good" : "bad");
-    const dealt = this.damage(target, total2, o.type, { crit, note, by: attacker });
+    const dealt = this.damage(target, total2, o.type, { crit, note, by: attacker, fromAttack: true });
     o.onHit?.(crit, dealt);
     return true;
   }
@@ -511,10 +526,31 @@ export class Game {
     return success;
   }
 
-  damage(target: Actor, amount: number, type: DamageType, o: { crit?: boolean; note?: string; by?: Actor } = {}): number {
+  damage(target: Actor, amount: number, type: DamageType, o: { crit?: boolean; note?: string; by?: Actor; fromAttack?: boolean } = {}): number {
     if (target.dead || amount <= 0) return 0;
     let n = amount;
     let note = o.note ?? "";
+    if (target === this.hero) {
+      const h = this.hero;
+      // Rogue: Uncanny Dodge halves the first weapon or spell attack that lands each round.
+      if (h.cls === "rogue" && h.level >= 3 && o.fromAttack && !h.reactionUsed && this.inCombat) {
+        h.reactionUsed = true;
+        n = Math.ceil(n / 2);
+        note = note ? `${note} · Uncanny Dodge` : "Uncanny Dodge";
+      }
+      // Wizard: Ember Ward soaks damage first.
+      if (h.ward && h.ward > 0) {
+        const soak = Math.min(h.ward, n);
+        h.ward -= soak;
+        n -= soak;
+        this.float(h, `Ward −${soak}`, "magic");
+        this.emit({ t: "hero" });
+        if (n <= 0) {
+          this.log(`Your Ember Ward drinks the blow${h.ward ? "" : " and gutters out"}.`, "magic");
+          return 0;
+        }
+      }
+    }
     if (target.team === "enemy") {
       const traits = this.monsterDef(target).traits;
       if (traits.includes("vuln_bludgeoning") && type === "bludgeoning") {
@@ -608,7 +644,7 @@ export class Game {
     if (h.level === 5) gains.push("Proficiency +3");
     const extra: Record<ClassId, Record<number, string>> = {
       fighter: { 3: "Improved Critical (19–20)", 5: "Extra Attack" },
-      rogue: { 3: "Sneak Attack 2d6", 5: "Sneak Attack 3d6" },
+      rogue: { 3: "Sneak Attack 2d6 · Uncanny Dodge", 5: "Sneak Attack 3d6" },
       wizard: { 3: "Misty Step", 5: "Fireball · Fire Bolt 2d10" },
       cleric: { 2: "Turn Undead", 5: "Destroy Undead · Sacred Flame 2d8" },
     };

@@ -26,7 +26,8 @@ export function runMonsterTurn(g: Game, m: Actor): void {
 
   const melee = def.attacks.filter((a) => !a.ranged);
   const ranged = def.attacks.filter((a) => a.ranged);
-  const canShoot = (a: MonsterAttack) => dist(m.pos, h.pos) <= a.range && g.los(m.pos, h.pos);
+  // Fair play: a monster may only shoot from where the hero can see it (and shoot back).
+  const canShoot = (a: MonsterAttack) => dist(m.pos, h.pos) <= a.range && g.los(m.pos, h.pos) && g.isVisible(m.pos);
 
   // Archers: keep distance, shoot from cover.
   if (ranged.length && def.attacks[0].ranged) {
@@ -69,7 +70,7 @@ function strike(g: Game, m: Actor, a: MonsterAttack): void {
     onHit: (_crit, dealt) => {
       if (a.name === "Life Drain" && traits.includes("life_drain") && dealt > 0) {
         g.float(m, "Drains life", "bad");
-        g.heal(m, dealt);
+        g.heal(m, Math.ceil(dealt / 2));
       }
       if (traits.includes("stun_claws") && !h.dead && !h.cond.stunned) {
         if (!g.save(h, "con", 10, "Con save")) {
@@ -106,7 +107,7 @@ function retreat(g: Game, m: Actor, shot: MonsterAttack): void {
   for (const [i] of reach) {
     const p = { x: i % g.map.w, y: (i / g.map.w) | 0 };
     const d = dist(p, h.pos);
-    if (d < 2 || d > shot.range || !g.los(p, h.pos)) continue;
+    if (d < 2 || d > shot.range || !g.los(p, h.pos) || !g.isVisible(p)) continue;
     const score = d * 2 - (reach.get(i)!.cost);
     if (score > bestScore) { bestScore = score; best = p; }
   }

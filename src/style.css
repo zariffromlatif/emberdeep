@@ -189,6 +189,8 @@ h2.title { font-family: var(--display); font-weight: 900; color: var(--gold); le
 .chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .chips .chip { font-size: 0.78rem; padding: 3px 7px; }
 .chips .chip .ico { color: var(--gold); }
+.chip.ward { border-color: rgba(154, 184, 255, 0.55); box-shadow: 0 0 10px rgba(127, 159, 255, 0.35); }
+.chip.ward .ico, .chip.ward b { color: #c8d6ff; }
 .pips { display: inline-flex; gap: 3px; }
 .pips i { width: 9px; height: 9px; border-radius: 50%; background: rgba(154, 184, 255, 0.15); border: 1px solid rgba(154, 184, 255, 0.5); }
 .pips i.on { background: radial-gradient(circle at 40% 35%, #e4ecff, #7f9fff); box-shadow: 0 0 6px #7f9fff; }
