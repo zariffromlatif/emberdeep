@@ -166,6 +166,9 @@ export class Hud {
           <span class="kbd">1</span>–<span class="kbd">9</span> abilities · <span class="kbd">Space</span> end turn · <span class="kbd">Esc</span> cancel ·
           <span class="kbd">Q</span>/<span class="kbd">E</span> rotate · drag to orbit · wheel or pinch to zoom · <span class="kbd">R</span> rest · <span class="kbd">L</span> log
         </p>
+        <p class="credits">Rules material from the System Reference Document 5.1 by Wizards of the Coast LLC, licensed under
+          <a href="https://creativecommons.org/licenses/by/4.0/legalcode" target="_blank" rel="noopener">CC BY 4.0</a>.
+          Characters: KayKit by Kay Lousberg (CC0). Not affiliated with Wizards of the Coast.</p>
         <div class="select-actions"><button class="btn" data-close>Got it</button></div>
       </div>`);
     el.addEventListener("click", (e) => { if ((e.target as HTMLElement).closest("[data-close]")) onClose(); });
