@@ -1,4 +1,4 @@
-import { PointerEventTypes, Vector3, type Texture } from "@babylonjs/core";
+import { PointerEventTypes, Vector3, type Texture } from "./render/babylon";
 import { Sfx } from "./audio/sfx";
 import { dist, type Pt } from "./core/grid";
 import { hashSeed } from "./core/rng";
@@ -154,9 +154,7 @@ export class App {
     veil.innerHTML = `<div class="spark"></div>`;
     document.getElementById("app")!.appendChild(veil);
     await this.kay.preload(this.modelsFor(g));
-    veil.classList.add("done");
-    setTimeout(() => veil.remove(), 900);
-    if (token !== this.sceneToken) return;
+    if (token !== this.sceneToken) { veil.remove(); return; }
     this.hud.hideScreen();
     this.clearLevel();
     this.sceneToken = token;
@@ -169,6 +167,11 @@ export class App {
     this.stage.focus.copyFrom(hv.world);
     this.stage.camera.target.copyFrom(hv.world);
     this.stage.camera.radius = 9.5;
+    // Shaders stream in as separate chunks: keep the veil up until the first frame is real.
+    await this.whenReady();
+    veil.classList.add("done");
+    setTimeout(() => veil.remove(), 900);
+    if (token !== this.sceneToken) return;
     this.hud.mountHud();
     this.hud.banner(g.map.theme.name, g.map.theme.subtitle);
     this.hud.log(`${g.map.theme.subtitle}: ${g.map.theme.name}.`, "gold");
@@ -176,6 +179,14 @@ export class App {
     this.sfx.ambience(true);
     this.save();
     this.refresh();
+  }
+
+  /** Resolves once every visible mesh has its shaders compiled (or after a few seconds regardless). */
+  whenReady(): Promise<void> {
+    return Promise.race([
+      this.stage.scene.whenReadyAsync().catch(() => undefined),
+      new Promise<void>((r) => setTimeout(r, 6000)),
+    ]);
   }
 
   private clearLevel(): void {

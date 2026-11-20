@@ -13,8 +13,8 @@ setTimeout(() => {
   const app = new App(canvas);
   app.showTitle();
   (window as unknown as { emberdeep: App }).emberdeep = app;
-  setTimeout(() => {
+  void app.whenReady().then(() => {
     loading.classList.add("done");
     setTimeout(() => loading.remove(), 900);
-  }, 300);
+  });
 }, 30);

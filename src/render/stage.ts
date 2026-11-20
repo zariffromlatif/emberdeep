@@ -1,7 +1,7 @@
 import {
   ArcRotateCamera, Color3, Color4, DefaultRenderingPipeline, Engine, GlowLayer, HemisphericLight,
   ImageProcessingConfiguration, Matrix, Plane, PointLight, Scene, Vector3,
-} from "@babylonjs/core";
+} from "./babylon";
 
 export type Quality = "low" | "medium" | "high";
 

@@ -1,4 +1,4 @@
-import { Color3, Mesh, MeshBuilder, StandardMaterial, VertexData, type Scene, type Texture } from "@babylonjs/core";
+import { Color3, Mesh, MeshBuilder, StandardMaterial, VertexData, type Scene, type Texture } from "./babylon";
 import type { Pt } from "../core/grid";
 
 function flatMat(scene: Scene, name: string): StandardMaterial {

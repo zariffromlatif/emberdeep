@@ -1,4 +1,4 @@
-import { Color3, MeshBuilder, StandardMaterial, Vector3, type AbstractMesh, type AnimationGroup, type Mesh, type Texture, type TransformNode } from "@babylonjs/core";
+import { Color3, MeshBuilder, StandardMaterial, Vector3, type AbstractMesh, type AnimationGroup, type Mesh, type Texture, type TransformNode } from "./babylon";
 import type { Actor } from "../game/types";
 import type { Kit } from "./kit";
 import type { KayBody, KayKitLibrary } from "./kaykit";

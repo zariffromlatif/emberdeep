@@ -1,4 +1,4 @@
-import { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode, type Material, type Scene, type Texture } from "@babylonjs/core";
+import { Color3, Mesh, MeshBuilder, StandardMaterial, TransformNode, type Material, type Scene, type Texture } from "./babylon";
 
 export interface MatOpts {
   emissive?: string;

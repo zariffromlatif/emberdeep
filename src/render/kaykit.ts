@@ -1,8 +1,7 @@
-import "@babylonjs/loaders/glTF";
 import {
   Color3, LoadAssetContainerAsync, Material, PBRMaterial, StandardMaterial, TransformNode,
   type AbstractMesh, type AnimationGroup, type AssetContainer, type Mesh, type Scene, type Texture,
-} from "@babylonjs/core";
+} from "./babylon";
 import type { Kit } from "./kit";
 
 /**

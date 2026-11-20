@@ -1,4 +1,4 @@
-import { type AbstractMesh, type Mesh, type TransformNode } from "@babylonjs/core";
+import { type AbstractMesh, type Mesh, type TransformNode } from "./babylon";
 import type { Kit } from "./kit";
 
 /** Pivots the animator moves. Every model, two legs or four, fills these in. */

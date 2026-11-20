@@ -1,4 +1,4 @@
-import { DynamicTexture, Texture, type Scene } from "@babylonjs/core";
+import { DynamicTexture, Texture, type Scene } from "./babylon";
 import { Rng } from "../core/rng";
 
 /** Tileable value noise with a few octaves. */

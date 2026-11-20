@@ -1,7 +1,7 @@
 import {
   Color3, Color4, Mesh, ParticleSystem, StandardMaterial, TransformNode, Vector3, VertexBuffer, VertexData,
   type Texture,
-} from "@babylonjs/core";
+} from "./babylon";
 import { DIRS4 } from "../core/grid";
 import { T, idx, inBounds, isFloorLike, type DungeonMap, type Prop } from "../dungeon/map";
 import type { Kit } from "./kit";

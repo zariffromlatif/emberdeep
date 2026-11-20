@@ -1,4 +1,4 @@
-import { Color3, Color4, Mesh, MeshBuilder, ParticleSystem, StandardMaterial, Vector3, type Texture } from "@babylonjs/core";
+import { Color3, Color4, Mesh, MeshBuilder, ParticleSystem, StandardMaterial, Vector3, type Texture } from "./babylon";
 import type { Kit } from "./kit";
 import type { Stage } from "./stage";
 import { ease, type Tweens } from "./tween";
