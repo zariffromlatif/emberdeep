@@ -17,6 +17,8 @@ import { Stage, detectQuality } from "./render/stage";
 import { brickwork, flagstones, planks, ringTexture, softDot, tileFrame, type Surface } from "./render/textures";
 import { Tweens } from "./render/tween";
 import { Hud, type HudActor } from "./ui/hud";
+import { KayKitLibrary } from "./render/kaykit";
+import { DEPTH_TABLES } from "./rules/monsters";
 
 const SAVE_KEY = "emberdeep.save.v1";
 const TONE_COLOR: Record<Tone, string> = {
@@ -42,6 +44,10 @@ export class App {
   readonly tweens = new Tweens();
   readonly fx: Fx;
   readonly overlay: Overlay;
+  /** CC0 KayKit character models, loaded on demand. */
+  readonly kay: KayKitLibrary;
+  /** Bumped whenever the scene is rebuilt, so slow model loads can't land in the wrong one. */
+  private sceneToken = 0;
   private surfaces: { floor: Surface; wall: Surface; planks: Texture; dot: Texture };
   private ringTex: Texture;
   private game: Game | null = null;
@@ -71,6 +77,7 @@ export class App {
     this.fx = new Fx(this.stage, this.kit, this.surfaces.dot, this.tweens);
     this.overlay = new Overlay(scene, tileFrame(scene));
     this.overlay.glowExclude = (m) => this.stage.glow.addExcludedMesh(m);
+    this.kay = new KayKitLibrary(scene, this.kit, this.stage.lightCount);
     this.wireInput(canvas);
     this.wireHud();
 
@@ -96,11 +103,16 @@ export class App {
     this.stage.camera.target.copyFrom(this.stage.focus);
     this.stage.camera.radius = 15;
     this.stage.heroLight.position.set(this.stage.focus.x, 2.5, this.stage.focus.z);
-    for (const s of map.spawns.slice(0, 14)) {
-      const a = { id: -1 - this.views.size, team: "enemy", def: s.monster, name: "", pos: s.pos, hp: 1, maxHp: 1 } as unknown as Actor;
-      const v = new ActorView(this.kit, this.stage, a, this.ringTex);
-      this.views.set(a.id, v);
-    }
+    const token = ++this.sceneToken;
+    const spawns = map.spawns.slice(0, 14);
+    void this.kay.preload(spawns.map((s) => s.monster)).then(() => {
+      if (token !== this.sceneToken) return;
+      for (const s of spawns) {
+        const a = { id: -1 - this.views.size, team: "enemy", def: s.monster, name: "", pos: s.pos, hp: 1, maxHp: 1 } as unknown as Actor;
+        const v = new ActorView(this.kit, this.stage, a, this.ringTex, this.kay);
+        this.views.set(a.id, v);
+      }
+    });
     this.hud.title(!!this.loadSave(), {
       newRun: () => { this.sfx.unlock(); this.sfx.click(); this.hud.heroSelect((c) => this.startRun(c), () => this.showTitle()); },
       resume: () => { this.sfx.unlock(); this.sfx.click(); this.resume(); },
@@ -114,7 +126,7 @@ export class App {
     const seed = hashSeed(`${Date.now()}-${Math.random()}`);
     this.game = Game.newRun(cls, seed);
     this.hud.clearLog();
-    this.enterFloor();
+    void this.enterFloor();
   }
 
   private resume(): void {
@@ -122,13 +134,32 @@ export class App {
     if (!data) { this.showTitle(); return; }
     this.game = Game.load(data);
     this.hud.clearLog();
-    this.enterFloor();
+    void this.enterFloor();
   }
 
-  private enterFloor(): void {
+  /** Every creature this depth might show: the hero, its spawns, wanderers, and the boss's summons. */
+  private modelsFor(g: Game): string[] {
+    const defs = new Set<string>([g.hero.cls, ...g.actors.map((a) => a.def)]);
+    for (const [id] of DEPTH_TABLES[g.depth] ?? []) defs.add(id);
+    if (g.actors.some((a) => a.def === "wight")) ["skeleton", "skeleton_archer", "zombie"].forEach((d) => defs.add(d));
+    return [...defs];
+  }
+
+  private async enterFloor(): Promise<void> {
     const g = this.game!;
+    this.mode = "menu";
+    const token = ++this.sceneToken;
+    const veil = document.createElement("div");
+    veil.className = "loading";
+    veil.innerHTML = `<div class="spark"></div>`;
+    document.getElementById("app")!.appendChild(veil);
+    await this.kay.preload(this.modelsFor(g));
+    veil.classList.add("done");
+    setTimeout(() => veil.remove(), 900);
+    if (token !== this.sceneToken) return;
     this.hud.hideScreen();
     this.clearLevel();
+    this.sceneToken = token;
     this.mode = "play";
     this.level = new LevelView(this.stage, this.kit, g.map, this.surfaces);
     this.seenShown = new Uint8Array(g.map.w * g.map.h);
@@ -148,6 +179,7 @@ export class App {
   }
 
   private clearLevel(): void {
+    this.sceneToken++;
     for (const v of this.views.values()) v.dispose();
     this.views.clear();
     this.level?.dispose();
@@ -157,7 +189,7 @@ export class App {
   }
 
   private addView(a: Actor): ActorView {
-    const v = new ActorView(this.kit, this.stage, a, this.ringTex);
+    const v = new ActorView(this.kit, this.stage, a, this.ringTex, this.kay);
     this.views.set(a.id, v);
     if (a.dead) { v.dead = true; v.setShown(false); }
     return v;
@@ -181,7 +213,7 @@ export class App {
       descend: () => {
         this.sfx.click();
         g.startFloor(g.depth + 1);
-        this.enterFloor();
+        void this.enterFloor();
       },
     }, recovered);
   }
@@ -307,9 +339,10 @@ export class App {
         const v = this.views.get(e.id)!;
         this.fx.burst(v.chestPos, { color: "#cfd8ff", color2: "#ffffff", count: 50, power: 1.5, size: 0.25, life: 0.8, gravity: 0.5 });
         this.sfx.magic();
-        await t.add(0.2, (k) => v.rig.root.scaling.setAll(1 - k * 0.95));
+        const teleScale = v.root.scaling.x;
+        await t.add(0.2, (k) => v.root.scaling.setAll(teleScale * (1 - k * 0.95)));
         v.setTile(e.to.x, e.to.y);
-        await t.add(0.2, (k) => v.rig.root.scaling.setAll(0.05 + k * 0.95));
+        await t.add(0.2, (k) => v.root.scaling.setAll(teleScale * (0.05 + k * 0.95)));
         this.fx.burst(v.chestPos, { color: "#cfd8ff", color2: "#ffffff", count: 50, power: 1.5, size: 0.25, life: 0.8, gravity: 0.5 });
         return;
       }
@@ -365,11 +398,11 @@ export class App {
           this.sfx.swing();
           await a.strike(d.world, t, false);
           const dir = d.world.subtract(a.world);
-          this.fx.slash(a.world.add(dir.scale(0.45)).add(new Vector3(0, a.rig.height * 0.6, 0)), dir, e.fx === "drain" ? "#a070ff" : e.crit ? "#ffd34d" : "#ffffff");
+          this.fx.slash(a.world.add(dir.scale(0.45)).add(new Vector3(0, a.height * 0.6, 0)), dir, e.fx === "drain" ? "#a070ff" : e.crit ? "#ffd34d" : "#ffffff");
         }
         if (!e.hit) {
           this.sfx.miss();
-          if (d.shown) d.recoil(a.world.add(d.world.subtract(a.world).scale(2)), t);
+          if (d.shown) d.evade(a.world, t);
         } else if (e.crit) {
           this.sfx.crit();
           this.stage.addShake(0.9);
@@ -456,6 +489,7 @@ export class App {
         void this.fx.beam(v.world, "#ffd76a", 6, 1.2, 1.4);
         void this.fx.ring(v.world, "#ffd76a", 2.5, 1);
         this.fx.burst(v.world.add(new Vector3(0, 0.5, 0)), { color: "#ffd76a", color2: "#ffffff", count: 80, power: 2, size: 0.12, life: 1.4, gravity: -0.5, box: 0.4 });
+        v.gesture("cheer", t);
         this.hud.toast(`<b style="color:var(--gold)">Level ${e.level}</b> — ${e.gains.join(" · ")}`, 4200);
         v.maxHp = e.maxHp;
         this.refresh();
@@ -464,6 +498,9 @@ export class App {
       }
       case "chest": {
         this.level!.openChest(e.at.x, e.at.y);
+        const hv = this.views.get(g.hero.id);
+        hv?.faceToward(this.world(e.at));
+        hv?.gesture("interact", t);
         this.sfx.chest();
         this.fx.burst(new Vector3(e.at.x, 0.5, e.at.y), { color: "#ffd76a", color2: "#fff4c0", count: 50, power: 2, size: 0.1, life: 1.1, gravity: -1 });
         this.hud.toast(`${"Found"}: ${e.loot.join(", ")}`);
@@ -481,6 +518,7 @@ export class App {
       }
       case "combatEnd": {
         for (const v of this.views.values()) { v.engaged = false; v.active = false; }
+        if (!g.over) this.views.get(g.hero.id)?.gesture("cheer", t);
         this.turnId = null;
         this.hud.order([], new Map(), null, 0, new Map());
         await t.wait(0.3);
@@ -510,7 +548,7 @@ export class App {
     switch (e.fx) {
       case "missile": {
         if (!caster || !target) return;
-        await caster.cast(target.world, t);
+        await caster.cast(target.world, t, "shoot");
         this.sfx.magic();
         const shots = [0, 1, 2, 3].map((k) => new Promise<void>((res) => setTimeout(() => {
           const off = new Vector3(Math.sin(k * 2.1) * 0.5, 0.4 + k * 0.1, Math.cos(k * 2.1) * 0.5);
@@ -521,7 +559,7 @@ export class App {
         return;
       }
       case "column": {
-        if (caster) await caster.cast(at, t);
+        if (caster) await caster.cast(at, t, "raise");
         this.sfx.holy();
         this.fx.light(at.add(new Vector3(0, 2, 0)), "#ffe48a", 3, 6);
         await this.fx.beam(at, "#ffe48a", 5, 0.8, 0.6);
@@ -529,7 +567,7 @@ export class App {
       }
       case "cone": {
         if (!caster) return;
-        await caster.cast(at, t);
+        await caster.cast(at, t, "long");
         this.sfx.fire();
         const tiles = (e.tiles ?? []).map((p) => this.world(p));
         this.fx.cone(caster.world, tiles);
@@ -539,7 +577,7 @@ export class App {
       }
       case "fireball": {
         if (!caster) return;
-        await caster.cast(at, t);
+        await caster.cast(at, t, "long");
         this.sfx.fire();
         await this.fx.bolt(caster.chestPos, at.add(new Vector3(0, 0.4, 0)), "#ffb36b", 0.18, 16, 1.5);
         this.sfx.fire(true);
@@ -549,6 +587,7 @@ export class App {
       }
       case "potion":
         this.sfx.heal();
+        caster?.gesture("item", t);
         if (caster) this.fx.burst(caster.chestPos, { color: "#ff5a6a", color2: "#ffd0d0", count: 30, power: 1, size: 0.12, life: 0.9, gravity: 1, box: 0.25 });
         await t.wait(0.2);
         return;
@@ -564,13 +603,13 @@ export class App {
         this.sfx.heal();
         if (caster) {
           void this.fx.beam(caster.world, "#a8ffb0", 3, 0.9, 0.8);
-          await caster.cast(null, t);
+          await caster.cast(null, t, "raise");
         }
         return;
       case "turn":
         this.sfx.holy();
         if (caster) {
-          await caster.cast(null, t);
+          await caster.cast(null, t, "raise");
           this.fx.light(caster.chestPos.add(new Vector3(0, 1, 0)), "#ffe48a", 3.5, 10);
           await this.fx.ring(caster.world, "#ffe48a", 6, 0.8);
         }
@@ -582,6 +621,7 @@ export class App {
         return;
       }
       case "summon":
+        if (caster) await caster.cast(null, t, "summon");
         this.sfx.fire(true);
         this.stage.addShake(0.8);
         this.fx.light(at.add(new Vector3(0, 1, 0)), "#ff3a1a", 4, 10);
@@ -927,8 +967,8 @@ export class App {
     }
     const hv = this.views.get(g.hero.id);
     if (hv) {
-      this.stage.focus.copyFrom(hv.rig.root.position);
-      const lp = hv.rig.root.position;
+      this.stage.focus.copyFrom(hv.root.position);
+      const lp = hv.root.position;
       this.stage.heroLight.position.set(lp.x, 2.3 + Math.sin(this.time * 7) * 0.02, lp.z);
       this.stage.heroLight.intensity = 1.2 + Math.sin(this.time * 11) * 0.04 + Math.sin(this.time * 3.3) * 0.05;
     }

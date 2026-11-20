@@ -88,7 +88,7 @@ export class Hud {
         <button class="btn ${hasSave ? "ghost" : ""}" data-a="new">${icon("stairs")} New descent</button>
         <button class="btn ghost" data-a="help">${icon("book")} How to play</button>
       </div>
-      <p class="footnote">Turn-based tactics on the 5e System Reference Document rules · tap or click to move · works on phone, tablet and PC</p>
+      <p class="footnote">Turn-based tactics on the 5e System Reference Document rules · tap or click to move · works on phone, tablet and PC<br/>Characters: KayKit by Kay Lousberg (CC0)</p>
     `, "title");
     el.addEventListener("click", (e) => {
       const a = (e.target as HTMLElement).closest("[data-a]")?.getAttribute("data-a");

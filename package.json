@@ -12,7 +12,8 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@babylonjs/core": "9.37.1"
+    "@babylonjs/core": "9.37.1",
+    "@babylonjs/loaders": "9.37.1"
   },
   "devDependencies": {
     "typescript": "7.0.2",
