@@ -1,6 +1,7 @@
 import { describe, it } from "vitest";
 import { playRun, summarize } from "./bot";
 import type { ClassId } from "../src/game/types";
+import type { Difficulty } from "../src/rules/difficulty";
 
 /**
  * Difficulty report, run on demand:  BALANCE=1 npx vitest run tests/balance.test.ts
@@ -15,7 +16,7 @@ describe.skipIf(!env.BALANCE)("balance report", () => {
     const all = [];
     for (const cls of classes) {
       const rs = [];
-      for (let i = 1; i <= N; i++) rs.push(playRun(cls, i * 7919 + 13));
+      for (let i = 1; i <= N; i++) rs.push(playRun(cls, i * 7919 + 13, (env.BALANCE_DIFFICULTY ?? "normal") as Difficulty));
       all.push(...rs);
       console.log(`${cls.padEnd(8)} ${summarize(rs)}`);
       if (env.BALANCE_VERBOSE) {

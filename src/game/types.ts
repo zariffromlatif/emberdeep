@@ -72,6 +72,8 @@ export interface Hero extends Actor {
   hitDice: number;
   /** Short rests taken this depth. */
   restsUsed: number;
+  /** Defy Death uses spent on this depth. */
+  defyUsed?: number;
   /** Wizard's Ember Ward: temporary hit points, renewed at the start of each fight. */
   ward?: number;
   /** Per-floor features: Second Wind, Action Surge, Turn Undead. */

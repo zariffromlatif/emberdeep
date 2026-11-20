@@ -4,6 +4,7 @@ import { dist, type Pt } from "../src/core/grid";
 import { FINAL_DEPTH } from "../src/dungeon/generate";
 import { MONSTERS } from "../src/rules/monsters";
 import type { Actor, ClassId } from "../src/game/types";
+import type { Difficulty } from "../src/rules/difficulty";
 
 /**
  * A "competent player" bot: the yardstick for difficulty tuning.
@@ -194,8 +195,8 @@ function clericTurn(g: Game): void {
 
 const TURNS: Record<ClassId, (g: Game) => void> = { fighter: fighterTurn, rogue: rogueTurn, wizard: wizardTurn, cleric: clericTurn };
 
-export function playRun(cls: ClassId, seed: number): RunResult {
-  const g = Game.newRun(cls, seed);
+export function playRun(cls: ClassId, seed: number, difficulty: Difficulty = "normal"): RunResult {
+  const g = Game.newRun(cls, seed, difficulty);
   let steps = 0;
   let killers: string[] = [];
   let lastFight: RunResult["lastFight"];

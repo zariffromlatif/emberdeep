@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { playRun, type RunResult } from "./bot";
 import type { ClassId } from "../src/game/types";
+import type { Difficulty } from "../src/rules/difficulty";
 
 /**
  * Whole runs played by the competent-player bot (tests/bot.ts).
@@ -34,5 +35,21 @@ describe("autoplay", () => {
       const w = runsFor(cls).filter((r) => r.result === "victory").length / RUNS;
       expect(w, `${cls} win rate`).toBeGreaterThan(0.15);
     }
+  }, 120_000);
+
+  const rate = (d: Difficulty) => {
+    const all = classes.flatMap((cls) => Array.from({ length: RUNS }, (_, i) => playRun(cls, i * 7919 + 13, d)));
+    expect(all.filter((r) => r.result === "stalled")).toEqual([]);
+    return all.filter((r) => r.result === "victory").length / all.length;
+  };
+
+  it("Story is clearly easier than Normal", () => {
+    expect(rate("story")).toBeGreaterThan(0.7);
+  }, 120_000);
+
+  it("Hard is clearly harder than Normal, but winnable", () => {
+    const w = rate("hard");
+    expect(w).toBeGreaterThan(0.03);
+    expect(w).toBeLessThan(0.35);
   }, 120_000);
 });

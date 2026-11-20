@@ -4,6 +4,7 @@ import { MONSTERS } from "../rules/monsters";
 import type { Game, RunStats, ShopItem } from "../game/game";
 import { blockedReason, heroActions, type HeroAction } from "../game/actions";
 import type { ClassId, RollInfo, Tone } from "../game/types";
+import { DIFFICULTIES, type Difficulty } from "../rules/difficulty";
 import { CLASS_ICON, icon } from "./icons";
 
 const $ = <T extends HTMLElement = HTMLElement>(root: ParentNode, sel: string) => root.querySelector(sel) as T;
@@ -98,11 +99,12 @@ export class Hud {
     });
   }
 
-  heroSelect(onPick: (c: ClassId) => void, onBack: () => void): void {
-    const cards = (Object.keys(CLASSES) as ClassId[]).map((id) => {
+  heroSelect(onPick: (c: ClassId, d: Difficulty) => void, onBack: () => void, initial: Difficulty = "normal"): void {
+    let diff: Difficulty = initial;
+    const cards = () => (Object.keys(CLASSES) as ClassId[]).map((id) => {
       const c = CLASSES[id];
       const conMod = Math.floor((c.scores.con - 10) / 2);
-      const hp = c.hitDie + conMod + 10;
+      const hp = c.hitDie + conMod + 10 + DIFFICULTIES[diff].heroHp;
       const ac = c.baseAc + (c.acDex ? Math.floor((c.scores.dex - 10) / 2) : 0);
       return `
         <button class="panel ornate ccard" data-c="${id}">
@@ -117,18 +119,32 @@ export class Hud {
           </div>
         </button>`;
     }).join("");
+    const picker = () => `
+      <div class="diffpick" role="radiogroup" aria-label="Difficulty">
+        ${(Object.keys(DIFFICULTIES) as Difficulty[]).map((d) => `<button class="diffopt ${d === diff ? "on" : ""}" role="radio" aria-checked="${d === diff}" data-d="${d}">${DIFFICULTIES[d].name}</button>`).join("")}
+      </div>
+      <p class="diffblurb">${esc(DIFFICULTIES[diff].blurb)}</p>`;
     const el = this.show(`
       <h2 class="title">Choose your hero</h2>
       <p class="subtitle">Beneath Hollowmere the old dwarven forge has woken, and something down there is burning.
       Five depths stand between you and the thing that lit it. You go alone.</p>
-      <div class="classes">${cards}</div>
+      <div data-picker>${picker()}</div>
+      <div class="classes" data-cards>${cards()}</div>
       <div class="select-actions"><button class="btn ghost" data-back>Back</button></div>
     `);
     el.addEventListener("click", (e) => {
       const t = e.target as HTMLElement;
       if (t.closest("[data-back]")) { onBack(); return; }
+      const d = t.closest("[data-d]")?.getAttribute("data-d") as Difficulty | null;
+      if (d) {
+        diff = d;
+        $(el, "[data-picker]").innerHTML = picker();
+        $(el, "[data-cards]").innerHTML = cards();
+        el.querySelectorAll(".ccard").forEach((c) => ((c as HTMLElement).style.animation = "none"));
+        return;
+      }
       const c = t.closest("[data-c]")?.getAttribute("data-c") as ClassId | null;
-      if (c) onPick(c);
+      if (c) onPick(c, diff);
     });
   }
 
@@ -202,7 +218,7 @@ export class Hud {
           ? `Varrow falls, and the forge-fire beneath Hollowmere gutters out. Your ${c.name.toLowerCase()} climbs back into the morning, a legend in a town that will never know.`
           : `Your ${c.name.toLowerCase()} fell on depth ${g.depth}, ${esc(g.map.theme.name)}. Someone else will have to finish this.`}</p>
         <div class="statgrid">
-          <div class="stat"><b>${g.depth}</b><span>Depth</span></div>
+          <div class="stat"><b>${g.depth}</b><span>Depth · ${DIFFICULTIES[g.difficulty].name}</span></div>
           <div class="stat"><b>${g.hero.level}</b><span>Level</span></div>
           <div class="stat"><b>${g.hero.kills}</b><span>Foes slain</span></div>
           <div class="stat"><b>${s.damageDealt}</b><span>Damage dealt</span></div>
@@ -333,7 +349,8 @@ export class Hud {
       <span class="chip" title="Potions of Healing">${icon("potion")} <b>${h.potions}</b></span>
       <span class="chip" title="Gold">${icon("coin")} <b>${h.gold}</b></span>
       <span class="chip" title="Hit dice for short rests">${icon("heart")} <b>${h.hitDice}</b></span>`;
-    $(el, "[data-depth]").innerHTML = `${esc(g.map.theme.subtitle)}<b>${esc(g.map.theme.name)}</b>`;
+    const dname = g.difficulty === "normal" ? "" : ` · ${DIFFICULTIES[g.difficulty].name}`;
+    $(el, "[data-depth]").innerHTML = `${esc(g.map.theme.subtitle)}${dname}<b>${esc(g.map.theme.name)}</b>`;
 
     // Economy: action, bonus, movement.
     const econ = $(el, "[data-econ]");
@@ -351,7 +368,7 @@ export class Hud {
     const slotsHtml = acts.map((a, i) => this.slotHtml(g, a, i, selected)).join("");
     const restReason = g.restBlocked();
     const rest = g.inCombat ? "" : `<div class="slot divider"></div>
-      <button class="slot ${restReason ? "off" : ""}" data-rest title="Short rest">${icon("rest")}<span class="key">R</span><span class="count">${2 - h.restsUsed}</span></button>`;
+      <button class="slot ${restReason ? "off" : ""}" data-rest title="Short rest">${icon("rest")}<span class="key">R</span><span class="count">${g.restsLeft()}</span></button>`;
     $(el, "[data-slots]").innerHTML = slotsHtml + rest;
 
     const end = $(el, "[data-end]");

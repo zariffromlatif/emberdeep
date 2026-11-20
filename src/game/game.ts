@@ -7,6 +7,7 @@ import { T, idx, tileAt, type DungeonMap } from "../dungeon/map";
 import { findPath, reachable, pathFromReach } from "../dungeon/path";
 import { CLASSES, MAX_LEVEL, XP_LEVELS, proficiency } from "../rules/classes";
 import { DEPTH_TABLES, MONSTERS, type MonsterDef } from "../rules/monsters";
+import { DIFFICULTIES, type Difficulty, type DifficultyDef } from "../rules/difficulty";
 
 const MONSTER_TABLE = (depth: number): [string, number][] => DEPTH_TABLES[depth] ?? DEPTH_TABLES[1];
 import { runMonsterTurn } from "./ai";
@@ -17,7 +18,6 @@ export const SIGHT = 8;
 export const SOLO_HP_BONUS = 10;
 export const SOLO_HP_PER_LEVEL = 2;
 export const NOTICE = 7;
-export const RESTS_PER_DEPTH = 2;
 
 export interface ShopItem {
   id: "potion" | "weapon" | "armor";
@@ -54,6 +54,8 @@ const SAVE_PROFS: Record<ClassId, Ability[]> = {
 export interface SaveData {
   version: 1;
   seed: number;
+  /** Missing in saves from before difficulties existed: those are Normal. */
+  difficulty?: Difficulty;
   depth: number;
   hero: Hero;
   stats: RunStats;
@@ -69,6 +71,7 @@ export interface RunStats {
 
 export class Game {
   readonly seed: number;
+  readonly difficulty: Difficulty;
   depth = 1;
   map!: DungeonMap;
   hero!: Hero;
@@ -85,22 +88,27 @@ export class Game {
   private nextId = 1;
   ev: GameEvent[] = [];
 
-  constructor(seed: number) {
+  constructor(seed: number, difficulty: Difficulty = "normal") {
     this.seed = seed >>> 0;
+    this.difficulty = difficulty;
     this.rng = new Rng(this.seed ^ 0x51ed270b);
   }
 
   // ------------------------------------------------------------ setup
 
-  static newRun(cls: ClassId, seed: number): Game {
-    const g = new Game(seed);
+  get diff(): DifficultyDef {
+    return DIFFICULTIES[this.difficulty];
+  }
+
+  static newRun(cls: ClassId, seed: number, difficulty: Difficulty = "normal"): Game {
+    const g = new Game(seed, difficulty);
     g.hero = g.makeHero(cls);
     g.startFloor(1);
     return g;
   }
 
   static load(data: SaveData): Game {
-    const g = new Game(data.seed);
+    const g = new Game(data.seed, data.difficulty ?? "normal");
     g.hero = data.hero;
     g.stats = data.stats;
     g.rng = new Rng((data.seed ^ Math.imul(data.depth, 0x27d4eb2d)) >>> 0);
@@ -109,19 +117,19 @@ export class Game {
   }
 
   toSave(): SaveData {
-    return { version: 1, seed: this.seed, depth: this.depth, hero: structuredClone(this.hero), stats: { ...this.stats } };
+    return { version: 1, seed: this.seed, difficulty: this.difficulty, depth: this.depth, hero: structuredClone(this.hero), stats: { ...this.stats } };
   }
 
   private makeHero(cls: ClassId): Hero {
     const c = CLASSES[cls];
     const conMod = abilityMod(c.scores.con);
-    const hp = c.hitDie + conMod + SOLO_HP_BONUS;
+    const hp = c.hitDie + conMod + SOLO_HP_BONUS + this.diff.heroHp;
     const hero: Hero = {
       ...this.blankActor("hero", cls, c.name, { x: 0, y: 0 }),
       hp, maxHp: hp, ac: 0, speed: 6, scores: { ...c.scores },
       awake: true, cls, level: 1, xp: 0,
       slots: c.slots[0], slotsMax: c.slots[0],
-      potions: 3, gold: 15, weaponBonus: 0, armorBonus: 0,
+      potions: this.diff.potions, gold: 15, weaponBonus: 0, armorBonus: 0,
       hitDice: 2, restsUsed: 0, featureUses: {}, kills: 0,
     };
     hero.ac = this.heroAc(hero);
@@ -146,7 +154,7 @@ export class Game {
   makeMonster(id: string, pos: Pt, group: number): Actor {
     const d = MONSTERS[id];
     const a = this.blankActor("enemy", id, d.name, pos);
-    a.hp = a.maxHp = d.hp;
+    a.hp = a.maxHp = Math.max(1, Math.round(d.hp * this.diff.monsterHp));
     a.ac = d.ac;
     a.speed = d.speed;
     a.scores = { ...d.scores };
@@ -156,7 +164,7 @@ export class Game {
 
   startFloor(depth: number): void {
     this.depth = depth;
-    this.map = generate(depth, this.seed);
+    this.map = generate(depth, this.seed, this.diff.monsterBudget, this.diff.groupSize);
     this.rng = new Rng((this.seed ^ Math.imul(depth, 0x27d4eb2d)) >>> 0);
     this.seen = new Uint8Array(this.map.w * this.map.h);
     this.inCombat = false;
@@ -170,6 +178,7 @@ export class Game {
     h.featureUses = {};
     h.hitDice = h.level + 1;
     h.restsUsed = 0;
+    h.defyUsed = 0;
     h.flags = {};
     h.cond = {};
     h.dead = false;
@@ -477,11 +486,12 @@ export class Game {
   attack(attacker: Actor, target: Actor, o: AttackOpts): boolean {
     const edge = this.attackEdge(attacker, target, o.ranged);
     const d = this.d20(edge.adv.length, edge.dis.length);
-    const total = d.natural + o.toHit;
+    const toHit = o.toHit + (attacker.team === "enemy" ? this.diff.monsterToHit : 0);
+    const total = d.natural + toHit;
     const critOn = attacker === this.hero && this.hero.cls === "fighter" && this.hero.level >= 3 ? 19 : 20;
     const crit = d.natural >= critOn;
     const hit = crit || (d.natural !== 1 && total >= target.ac);
-    const info: RollInfo = { d20: d, bonus: o.toHit, total, target: target.ac, label: o.label };
+    const info: RollInfo = { d20: d, bonus: toHit, total, target: target.ac, label: o.label };
     this.emit({ t: "attack", attacker: attacker.id, target: target.id, fx: o.fx, roll: info, hit, crit });
     const who = attacker === this.hero ? "You" : `The ${attacker.name}`;
     const whom = target === this.hero ? "you" : `the ${target.name}`;
@@ -576,13 +586,13 @@ export class Game {
       this.emit({ t: "damage", target: target.id, amount: n, type, hpAfter: Math.max(0, target.hp), crit: o.crit, note });
     }
 
-    if (target.hp <= 0 && target === this.hero && !this.hero.flags.defied) {
+    if (target.hp <= 0 && target === this.hero && (this.hero.defyUsed ?? 0) < this.diff.defyDeath) {
       // Solo safety net: once per depth, a killing blow leaves you standing at 1 HP.
-      this.hero.flags.defied = true;
+      this.hero.defyUsed = (this.hero.defyUsed ?? 0) + 1;
       target.hp = 1;
       this.emit({ t: "heal", target: target.id, amount: 1, hpAfter: 1 });
       this.float(target, "Defy Death!", "crit");
-      this.log("Darkness swims at the edge of your sight… but you refuse to fall. (Defy Death: once per depth)", "gold");
+      this.log("Darkness swims at the edge of your sight… but you refuse to fall. (Defy Death)", "gold");
       return n;
     }
     if (target.hp <= 0) this.kill(target);
@@ -631,7 +641,7 @@ export class Game {
       h.scores[c.primary] += 2;
       gains.push(`${c.primary.toUpperCase()} +2`);
     }
-    const hpGain = c.hpPerLevel + abilityMod(h.scores.con) + SOLO_HP_PER_LEVEL;
+    const hpGain = c.hpPerLevel + abilityMod(h.scores.con) + SOLO_HP_PER_LEVEL + this.diff.heroHpPerLevel;
     h.maxHp += hpGain;
     h.hp += hpGain;
     gains.unshift(`+${hpGain} max HP`);
@@ -829,12 +839,16 @@ export class Game {
     return out;
   }
 
+  restsLeft(): number {
+    return Math.max(0, this.diff.restsPerDepth - this.hero.restsUsed);
+  }
+
   /** Why a short rest isn't possible right now (null = it is). */
   restBlocked(): string | null {
     const h = this.hero;
     if (this.over) return "The run is over";
     if (this.inCombat) return "Not while foes are near";
-    if (h.restsUsed >= RESTS_PER_DEPTH) return "No more rests on this depth";
+    if (h.restsUsed >= this.diff.restsPerDepth) return "No more rests on this depth";
     if (h.hp >= h.maxHp && !Object.keys(h.featureUses).length && h.slots >= h.slotsMax) return "Nothing to recover";
     return null;
   }

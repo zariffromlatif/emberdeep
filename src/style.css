@@ -147,6 +147,11 @@ h2.title { font-family: var(--display); font-weight: 900; color: var(--gold); le
 .chip { display: inline-flex; align-items: center; gap: 4px; font-size: 0.78rem; padding: 4px 8px; border-radius: 999px; background: rgba(255, 255, 255, 0.05); border: 1px solid rgba(255, 255, 255, 0.08); color: var(--text); white-space: nowrap; }
 .chip b { color: var(--gold); }
 .diff-Sturdy { color: var(--good); } .diff-Tricky { color: var(--ember-hot); } .diff-Fragile { color: var(--bad); }
+.diffpick { display: flex; justify-content: center; gap: 0; margin: 0 auto 8px; width: max-content; border: 1px solid var(--edge); border-radius: 999px; padding: 3px; background: rgba(14, 11, 12, 0.7); }
+.diffopt { cursor: pointer; border: 0; background: transparent; color: var(--muted); font-family: var(--display); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 0.78rem; padding: 8px 18px; border-radius: 999px; min-height: 36px; transition: color 0.2s, background 0.2s; }
+.diffopt:hover { color: var(--text); }
+.diffopt.on { color: #2a1606; background: linear-gradient(180deg, #f6d792, #c08a3a); box-shadow: 0 0 14px rgba(255, 160, 70, 0.35); }
+.diffblurb { text-align: center; color: var(--muted); font-size: 0.92rem; margin: 0 auto 18px; max-width: 520px; min-height: 1.3em; }
 .select-actions { display: flex; gap: 12px; justify-content: center; margin-top: 24px; flex-wrap: wrap; }
 
 /* campfire, results */

@@ -7,7 +7,8 @@ import { T, idx, inBounds, type DungeonMap, type Prop, type PropKind, type Room,
 export const FINAL_DEPTH = 5;
 
 /** Builds one dungeon level. The same depth and seed always give the same level. */
-export function generate(depth: number, seed: number): DungeonMap {
+/** `budget` and `groupSize` scale the monsters (difficulty); 1 is the tuned Normal. */
+export function generate(depth: number, seed: number, budget = 1, groupSize = 1): DungeonMap {
   const rng = new Rng((seed ^ Math.imul(depth, 0x9e3779b1)) >>> 0);
   const W = 40 + depth * 3;
   const H = 40 + depth * 3;
@@ -31,7 +32,7 @@ export function generate(depth: number, seed: number): DungeonMap {
   assignRoomKinds(m, rng);
   placeDoors(m, rng);
   decorate(m, rng);
-  populate(m, rng);
+  populate(m, rng, budget, groupSize);
   return m;
 }
 
@@ -331,7 +332,7 @@ function decorate(m: DungeonMap, rng: Rng): void {
 
 // ---------------------------------------------------------------- monsters
 
-function populate(m: DungeonMap, rng: Rng): void {
+function populate(m: DungeonMap, rng: Rng, budgetMult: number, groupMult: number): void {
   const taken = new Set<number>();
   const freeTiles = (r: Room): Pt[] => {
     const out: Pt[] = [];
@@ -367,9 +368,9 @@ function populate(m: DungeonMap, rng: Rng): void {
     return db - da;
   });
 
-  let budget = DEPTH_BUDGET[m.depth] ?? 600;
+  let budget = (DEPTH_BUDGET[m.depth] ?? 600) * budgetMult;
   const table = DEPTH_TABLES[m.depth] ?? DEPTH_TABLES[1];
-  const cap = GROUP_CAP[m.depth] ?? 750;
+  const cap = (GROUP_CAP[m.depth] ?? 750) * groupMult;
   const filled = new Set<number>();
   // The depth-4 Ogre guards the stairs alone: it is a full encounter by itself.
   if (m.depth === 4) {

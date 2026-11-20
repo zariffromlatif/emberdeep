@@ -19,8 +19,11 @@ import { Tweens } from "./render/tween";
 import { Hud, type HudActor } from "./ui/hud";
 import { KayKitLibrary } from "./render/kaykit";
 import { DEPTH_TABLES } from "./rules/monsters";
+import type { Difficulty } from "./rules/difficulty";
 
 const SAVE_KEY = "emberdeep.save.v1";
+/** Remembers the last difficulty picked (a convenience, not game state). */
+const DIFF_KEY = "emberdeep.difficulty";
 const TONE_COLOR: Record<Tone, string> = {
   info: "#efe6d6", good: "#8fe39a", bad: "#ff7a6e", crit: "#ffd34d", miss: "#b0b0b0", magic: "#9ab8ff", gold: "#e9c27a", dim: "#8a8070",
 };
@@ -115,17 +118,27 @@ export class App {
       }
     });
     this.hud.title(!!this.loadSave(), {
-      newRun: () => { this.sfx.unlock(); this.sfx.click(); this.hud.heroSelect((c) => this.startRun(c), () => this.showTitle()); },
+      newRun: () => { this.sfx.unlock(); this.sfx.click(); this.pickHero(); },
       resume: () => { this.sfx.unlock(); this.sfx.click(); this.resume(); },
       help: () => { this.sfx.unlock(); this.hud.help(() => this.showTitle()); },
     });
   }
 
-  private startRun(cls: ClassId): void {
+  private pickHero(): void {
+    let saved: Difficulty = "normal";
+    try {
+      const v = localStorage.getItem(DIFF_KEY);
+      if (v === "story" || v === "normal" || v === "hard") saved = v;
+    } catch { /* no storage: default */ }
+    this.hud.heroSelect((c, d) => this.startRun(c, d), () => this.showTitle(), saved);
+  }
+
+  private startRun(cls: ClassId, difficulty: Difficulty = "normal"): void {
     this.sfx.unlock();
     this.sfx.click();
+    try { localStorage.setItem(DIFF_KEY, difficulty); } catch { /* fine */ }
     const seed = hashSeed(`${Date.now()}-${Math.random()}`);
-    this.game = Game.newRun(cls, seed);
+    this.game = Game.newRun(cls, seed, difficulty);
     this.hud.clearLog();
     void this.enterFloor();
   }
@@ -238,7 +251,7 @@ export class App {
     const g = this.game!;
     setTimeout(() => {
       this.hud.unmountHud();
-      this.hud.results(win, g, () => this.hud.heroSelect((c) => this.startRun(c), () => this.showTitle()), () => this.showTitle());
+      this.hud.results(win, g, () => this.pickHero(), () => this.showTitle());
     }, win ? 1800 : 1400);
   }
 
